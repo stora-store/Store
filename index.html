@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ستورا ستور | تجهيزات الحمام الفاخرة</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root { --primary: #1f2937; --gold: #c59b27; --bg: #f8fafc; --border: #e2e8f0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Cairo', sans-serif; }
+    body { background-color: var(--bg); color: var(--primary); line-height: 1.6; }
+    header { background: #fff; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+    .catalog-container { max-width: 1300px; margin: 20px auto; padding: 0 20px; }
+    .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .card { background: #fff; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; padding: 15px; }
+    .admin-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 3000; }
+    .admin-modal.open { display: flex; }
+    .admin-content { background: #fff; width: 100%; max-width: 600px; padding: 25px; border-radius: 12px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1 ondblclick="openAdminPanel()" style="cursor:pointer; font-size: 1.4rem;">🗄️ ستورا ستور (انقر مرتين للآدمن)</h1>
+  </header>
+
+  <main class="catalog-container">
+    <div class="products-grid" id="productsGrid">جاري تحميل المنتجات...</div>
+  </main>
+
+  <!-- نافذة نموذج الأدمن المربوط بـ GitHub API -->
+  <div class="admin-modal" id="adminModal">
+    <div class="admin-content">
+      <h3>⚙️ لوحة تحكم الأدمن (حفظ فعلي على GitHub)</h3>
+      <div style="margin-top: 15px;">
+        <label>اسم المنتج:</label>
+        <input type="text" id="adminTitle" style="width:15px; width:100%; padding:8px; margin-bottom:10px;" placeholder="اسم المنتج الجديد">
+        
+        <label>السعر:</label>
+        <input type="number" id="adminPrice" style="width:100%; padding:8px; margin-bottom:15px;" placeholder="السعر">
+
+        <button onclick="addNewProductToGitHub()" style="background:#059669; color:#fff; border:none; padding:10px 15px; border-radius:6px; cursor:pointer; width:100%;">حفظ ورفع التعديل على GitHub</button>
+        <button onclick="document.getElementById('adminModal').classList.remove('open')" style="background:#64748b; color:#fff; border:none; padding:8px; margin-top:8px; cursor:pointer; width:100%;">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let storeData = { units: [], basins: [], porcelain: [], showers: [], toilets: [], mirrors: [], mixers: [], accessories: [], stainless: [] };
+
+    // جلب المنتجات من ملف products.json الخارجي عند تحميل الصفحة
+    async function loadStoreProducts() {
+      try {
+        const response = await fetch('products.json');
+        storeData = await response.json();
+        renderProducts();
+      } catch (error) {
+        console.error("خطأ في جلب المنتجات:", error);
+        document.getElementById('productsGrid').innerText = "تعسّر تحميل المنتجات.";
+      }
+    }
+
+    function renderProducts() {
+      const grid = document.getElementById('productsGrid');
+      grid.innerHTML = "";
+      
+      const allItems = [...storeData.units, ...storeData.basins];
+      if (allItems.length === 0) {
+        grid.innerHTML = "<p>لا توجد منتجات متاحة حالياً.</p>";
+        return;
+      }
+
+      allItems.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <h3>${item.titleAr}</h3>
+          <p style="color:#059669; font-weight:bold; margin-top:8px;">${item.price || item.prices?.[60] || 0} ج.م</p>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function openAdminPanel() {
+      const pass = prompt("أدخل كلمة مرور الأدمن:");
+      if (pass === "admin123") {
+        document.getElementById('adminModal').classList.add('open');
+      } else if (pass !== null) {
+        alert("كلمة المرور غير صحيحة!");
+      }
+    }
+
+    // دالة التعديل الفعلي وحفظ البيانات داخل مستودع GitHub مباشرة
+    async function addNewProductToGitHub() {
+      const title = document.getElementById('adminTitle').value;
+      const price = parseFloat(document.getElementById('adminPrice').value);
+
+      if (!title || !price) {
+        alert("يرجى إدخال الحقول المطلوبة!");
+        return;
+      }
+
+      const owner = "stora-store"; // اسم حسابك على GitHub
+      const repo = "Stora_Store";  // اسم المستودع
+      const path = "products.json";
+      const token = "ضع_رمز_الـ_Token_هنا"; // رمز الـ Token الذي أنشأته بصلاحية repo
+
+      const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+
+      try {
+        // 1. جلب محتوى الملف الحالي و الـ SHA
+        const getRes = await fetch(apiUrl, { headers: { "Authorization": `token ${token}` } });
+        if (!getRes.ok) throw new Error("فشل الاتصال بـ GitHub API");
+        
+        const fileData = await getRes.json();
+        let currentJson = JSON.parse(atob(fileData.content));
+
+        // 2. إضافة المنتج الجديد للقسم المناسب (كمثال في basins أو units)
+        currentJson.basins.unshift({
+          id: "BS-" + Math.floor(Math.random() * 9000 + 1000),
+          type: "basin",
+          category: "basin-all",
+          titleAr: title,
+          price: price
+        });
+
+        // 3. رفع التحديث وعمل Commit تلقائي للمستودع
+        const putRes = await fetch(apiUrl, {
+          method: "PUT",
+          headers: {
+            "Authorization": `token ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message: "Add new product via Admin Panel",
+            content: btoa(unescape(encodeURIComponent(JSON.stringify(currentJson, null, 2)))),
+            sha: fileData.sha
+          })
+        });
+
+        if (putRes.ok) {
+          alert("تم حفظ المنتج ورفعه على كود المستودع بنجاح! سيتم تحديث المتجر خلال لحظات.");
+          document.getElementById('adminModal').classList.remove('open');
+          loadStoreProducts(); // إعادة تحميل المنتجات في الصفحة
+        } else {
+          alert("فشل الرفع، تأكد من صحة وصلاحيات الرمز (Token).");
+        }
+
+      } catch (err) {
+        console.error(err);
+        alert("حدث خطأ أثناء الاتصال: " + err.message);
+      }
+    }
+
+    window.onload = loadStoreProducts;
+  </script>
+</body>
+</html>
